@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>E06: Sensor Fusion — SE Zoo</title>
+    <meta name="description" content="Information-form sensor fusion for a pendulum with encoder, gyroscope, and accelerometer. Interactive multi-sensor estimation.">
+    <style>
+        :root{--bg-primary:#0d1117;--bg-secondary:#161b22;--bg-card:#1c2128;--bg-card-hover:#272d36;--bg-input:#21262d;--text-primary:#e6edf3;--text-secondary:#8b949e;--text-muted:#6e7681;--text-link:#58a6ff;--border-default:#30363d;--border-muted:#21262d;--radius-sm:6px;--radius-md:10px;--transition:.2s ease;--accent:#d29922}
+        :root[data-theme="light"]{--bg-primary:#ffffff;--bg-secondary:#f6f8fa;--bg-card:#ffffff;--bg-card-hover:#f3f4f6;--bg-input:#f6f8fa;--text-primary:#1f2328;--text-secondary:#656d76;--text-muted:#8b949e;--text-link:#0969da;--border-default:#d0d7de;--border-muted:#d8dee4}
+        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+        body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;color:var(--text-primary);background:var(--bg-primary);-webkit-font-smoothing:antialiased;line-height:1.6}
+    </style>
+    <link rel="stylesheet" href="../../css/item.css">
+    <link rel="stylesheet" href="../../css/animation.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+    <div class="item-page">
+        <nav class="item-nav">
+            <a href="https://malphons.github.io/app_se_zoo/" class="item-nav__back">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>Back to SE Zoo</a>
+            <button class="item-nav__theme-toggle" aria-label="Toggle theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></button>
+        </nav>
+
+        <section class="item-hero">
+            <h1 class="item-hero__title">Sensor Fusion</h1>
+            <div class="item-hero__meta">
+                <span class="item-hero__module-id">E06</span>
+                <span class="item-hero__badge" style="background:#f0883e;color:#fff">Optimal Filtering</span>
+                <span class="item-hero__badge" style="background:rgba(210,153,34,.15);color:#d29922">Sensor Fusion</span>
+                <span class="item-hero__badge" style="background:var(--bg-card);color:var(--text-secondary);border:1px solid var(--border-default)">2-Link Arm</span>
+                <span class="item-hero__year">Est. 1970</span>
+            </div>
+            <p class="item-hero__desc">
+                Fusing complementary sensors yields better estimates than any sensor alone.
+                Each sensor adds positive-definite information, so fusion can only reduce uncertainty.
+            </p>
+        </section>
+
+        <div class="item-prereqs">
+            <span class="item-prereqs__label">Prerequisite:</span>
+            <a href="https://malphons.github.io/se-zoo-opt-nonlinear-filter/items/ekf/" class="item-related__link" style="padding:3px 10px;font-size:.75rem">E05: Extended Kalman Filter</a>
+        </div>
+
+        <div class="item-viz">
+            <div class="item-viz__split">
+                <div class="item-robot" id="robot-container">
+                    <span class="item-robot__label">Robot View</span>
+                </div>
+                <div class="item-diagram">
+                    <div class="item-diagram__controls">
+                        <button class="item-diagram__btn item-diagram__btn--active" id="btn-position">Position</button>
+                        <button class="item-diagram__btn" id="btn-covariance">Covariance</button>
+                        <button class="item-diagram__btn" id="btn-information">Information</button>
+                        <button class="item-diagram__btn" id="btn-regenerate">Regenerate</button>
+                    </div>
+                    <div id="diagram-container"></div>
+                </div>
+            </div>
+            <div class="item-transport">
+                <button class="item-transport__btn" id="btn-step-back" aria-label="Step back">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="3" height="16"/><polygon points="20,4 8,12 20,20"/></svg>
+                </button>
+                <button class="item-transport__btn item-transport__btn--play" id="btn-play" aria-label="Play">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="6,3 20,12 6,21"/></svg>
+                </button>
+                <button class="item-transport__btn" id="btn-step-fwd" aria-label="Step forward">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="4,4 16,12 4,20"/><rect x="17" y="4" width="3" height="16"/></svg>
+                </button>
+                <input type="range" class="item-transport__scrubber" id="scrubber" min="0" max="250" value="0">
+                <span class="item-transport__frame" id="frame-display">0 / 250</span>
+                <select class="item-transport__speed" id="speed-select">
+                    <option value="0.5">0.5x</option>
+                    <option value="1" selected>1x</option>
+                    <option value="2">2x</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="item-sliders">
+            <div class="item-slider" id="slider-enc">
+                <span class="item-slider__label">Encoder noise:</span>
+                <input type="range" class="item-slider__input" min="0.005" max="0.2" step="0.005" value="0.02">
+                <span class="item-slider__value">0.020</span>
+            </div>
+            <div class="item-slider" id="slider-gyro">
+                <span class="item-slider__label">Gyro noise:</span>
+                <input type="range" class="item-slider__input" min="0.01" max="0.5" step="0.01" value="0.08">
+                <span class="item-slider__value">0.080</span>
+            </div>
+            <div class="item-slider" id="slider-accel">
+                <span class="item-slider__label">Accel noise:</span>
+                <input type="range" class="item-slider__input" min="0.05" max="1.0" step="0.05" value="0.30">
+                <span class="item-slider__value">0.300</span>
+            </div>
+        </div>
+        <div class="item-stats" id="diagram-stats"></div>
+
+        <div class="item-tabs">
+            <button class="item-tab-btn item-tab-btn--active" data-tab="overview">Overview</button>
+            <button class="item-tab-btn" data-tab="howto">How It Works</button>
+            <button class="item-tab-btn" data-tab="math">Math</button>
+            <button class="item-tab-btn" data-tab="code">Code</button>
+            <button class="item-tab-btn" data-tab="references">References</button>
+        </div>
+
+        
+        <div class="item-tab-content item-tab-content--active" id="tab-overview">
+            <div class="item-section">
+                <h2>Overview</h2>
+                <p>Real robots carry multiple sensors, each with different strengths and weaknesses. An encoder precisely measures joint position but tells you nothing about velocity. A gyroscope directly measures angular rate but drifts over time. An accelerometer captures fast dynamics but is plagued by noise and gravity coupling. No single sensor gives you the full picture.</p>
+                <p>Sensor fusion combines these complementary measurements into a single estimate that is <strong>better than any individual sensor</strong>. The key mathematical insight comes from the <em>information form</em> of the Kalman filter: each sensor contributes a positive-definite information matrix $\mathbf{I}_k = \mathbf{H}^T \mathbf{R}^{-1} \mathbf{H}$, and these simply <strong>add</strong>.</p>
+                <div class="item-insight">
+                    <div class="item-insight__label">Key Insight</div>
+                    <p style="color:var(--text-secondary);margin:0">Because each sensor's information matrix $\mathbf{H}^T \mathbf{R}^{-1} \mathbf{H}$ is positive semi-definite, adding more sensors can only <strong>increase</strong> total information and <strong>decrease</strong> uncertainty. Fusion never makes things worse &mdash; even a noisy sensor helps.</p>
+                </div>
+                <h3>Key Properties</h3>
+                <ul>
+                    <li><strong>Complementary sensing</strong> &mdash; Different sensors observe different state components</li>
+                    <li><strong>Precision weighting</strong> &mdash; Low-noise sensors automatically get more weight</li>
+                    <li><strong>Information additivity</strong> &mdash; Information matrices add directly; fusion is a sum</li>
+                    <li><strong>Guaranteed improvement</strong> &mdash; Fused covariance is always smaller than any individual sensor's covariance</li>
+                    <li><strong>Graceful degradation</strong> &mdash; If one sensor fails, the others still provide partial information</li>
+                </ul>
+                <h3>Sensors in This Demo</h3>
+                <ul>
+                    <li><strong>Encoder</strong> (green) &mdash; Measures position $\theta$, low noise ($\sigma \approx 0.02$ rad)</li>
+                    <li><strong>Gyroscope</strong> (purple) &mdash; Measures velocity $\dot\theta$, moderate noise ($\sigma \approx 0.08$ rad/s)</li>
+                    <li><strong>Accelerometer</strong> (yellow) &mdash; Measures acceleration $\ddot\theta$, high noise ($\sigma \approx 0.30$ rad/s&sup2;)</li>
+                </ul>
+            </div>
+        </div>
+
+        
+        <div class="item-tab-content" id="tab-howto">
+            <div class="item-section">
+                <h2>How It Works</h2>
+                <ol style="color:var(--text-secondary);padding-left:20px;margin-bottom:16px">
+                    <li style="margin-bottom:8px"><strong>Predict:</strong> Propagate the state estimate through the nonlinear pendulum dynamics and grow the covariance by adding process noise $\mathbf{Q}$.</li>
+                    <li style="margin-bottom:8px"><strong>Convert to information form:</strong> Compute the predicted information matrix $\mathbf{I}^{-} = (\mathbf{P}^{-})^{-1}$ and information vector $\mathbf{i}^{-} = \mathbf{I}^{-}\hat{\mathbf{x}}^{-}$.</li>
+                    <li style="margin-bottom:8px"><strong>Compute each sensor's contribution:</strong> For sensor $j$, form $\mathbf{I}_j = \mathbf{H}_j^T \mathbf{R}_j^{-1} \mathbf{H}_j$ and $\mathbf{i}_j = \mathbf{H}_j^T \mathbf{R}_j^{-1} z_j$.</li>
+                    <li style="margin-bottom:8px"><strong>Fuse by addition:</strong> $\mathbf{I}^{+} = \mathbf{I}^{-} + \sum_j \mathbf{I}_j$ and $\mathbf{i}^{+} = \mathbf{i}^{-} + \sum_j \mathbf{i}_j$.</li>
+                    <li style="margin-bottom:8px"><strong>Recover estimates:</strong> $\mathbf{P}^{+} = (\mathbf{I}^{+})^{-1}$ and $\hat{\mathbf{x}}^{+} = \mathbf{P}^{+}\mathbf{i}^{+}$.</li>
+                </ol>
+                <p>The beauty of the information form is that step 4 is just matrix addition &mdash; no matrix inversion is needed until the final recovery step. Each sensor's contribution is independent, making it trivial to add or remove sensors.</p>
+                <div class="item-insight">
+                    <div class="item-insight__label">Why Information Form?</div>
+                    <p style="color:var(--text-secondary);margin:0">In the standard covariance form, fusing $N$ sensors requires $N$ sequential Kalman updates. In the information form, you simply add all information matrices and vectors, then invert once. This is mathematically equivalent but conceptually cleaner and naturally parallelizable.</p>
+                </div>
+            </div>
+        </div>
+
+        
+        <div class="item-tab-content" id="tab-math">
+            <div class="item-section">
+                <h2>Key Equations</h2>
+                <div class="item-math">
+                    <div class="item-math__label">Information Matrix from Sensor $j$</div>
+                    <p>$$\mathbf{I}_j = \mathbf{H}_j^T \mathbf{R}_j^{-1} \mathbf{H}_j$$</p>
+                    <p style="color:var(--text-muted);font-size:.85rem">Each sensor contributes a positive semi-definite information matrix. $\mathbf{H}_j$ is the observation matrix and $\mathbf{R}_j$ is the measurement noise covariance.</p>
+                </div>
+                <div class="item-math">
+                    <div class="item-math__label">Information Vector from Sensor $j$</div>
+                    <p>$$\mathbf{i}_j = \mathbf{H}_j^T \mathbf{R}_j^{-1} \mathbf{z}_j$$</p>
+                </div>
+                <div class="item-math">
+                    <div class="item-math__label">Fusion by Addition</div>
+                    <p>$$\mathbf{I}_{\text{fused}} = \mathbf{I}_{\text{prior}} + \sum_{j=1}^{N_s} \mathbf{I}_j \qquad \mathbf{i}_{\text{fused}} = \mathbf{i}_{\text{prior}} + \sum_{j=1}^{N_s} \mathbf{i}_j$$</p>
+                </div>
+                <div class="item-math">
+                    <div class="item-math__label">Recovery of State and Covariance</div>
+                    <p>$$\mathbf{P}_{\text{fused}} = \mathbf{I}_{\text{fused}}^{-1} \qquad \hat{\mathbf{x}}_{\text{fused}} = \mathbf{P}_{\text{fused}} \, \mathbf{i}_{\text{fused}}$$</p>
+                </div>
+                <div class="item-math">
+                    <div class="item-math__label">Sensor Observation Models (This Demo)</div>
+                    <p>$$\text{Encoder: } \mathbf{H}_{\text{enc}} = \begin{bmatrix}1 & 0\end{bmatrix}, \quad R_{\text{enc}} = \sigma_{\text{enc}}^2$$</p>
+                    <p>$$\text{Gyro: } \mathbf{H}_{\text{gyro}} = \begin{bmatrix}0 & 1\end{bmatrix}, \quad R_{\text{gyro}} = \sigma_{\text{gyro}}^2$$</p>
+                    <p>$$\text{Accel: } \mathbf{H}_{\text{acc}} = \begin{bmatrix}-\tfrac{g}{L}\cos\theta & -d\end{bmatrix}, \quad R_{\text{acc}} = \sigma_{\text{acc}}^2$$</p>
+                </div>
+                <div class="item-math">
+                    <div class="item-math__label">Positive-Definiteness Guarantee</div>
+                    <p>$$\mathbf{I}_j = \mathbf{H}_j^T \mathbf{R}_j^{-1} \mathbf{H}_j \succeq 0 \quad \Rightarrow \quad \mathbf{I}_{\text{fused}} \succeq \mathbf{I}_{\text{prior}} \quad \Rightarrow \quad \mathbf{P}_{\text{fused}} \preceq \mathbf{P}_{\text{prior}}$$</p>
+                    <p style="color:var(--text-muted);font-size:.85rem">Adding any sensor can only decrease (or maintain) the fused covariance. More sensors always help.</p>
+                </div>
+            </div>
+        </div>
+
+        
+        <div class="item-tab-content" id="tab-code">
+            <div class="item-section">
+                <h2>MATLAB Implementation</h2>
+                <div class="item-code">
+                    <div class="item-code__label">MATLAB</div>
+                    <pre><code>%% E06: Sensor Fusion — Information Form (3 Sensors)
+% Pendulum: state = [theta; omega], 3 complementary sensors
+
+dt = 0.02; N = 250; g = 9.81; L = 1.0; d = 0.15;
+
+% Sensor noise standard deviations
+sig_enc = 0.02; sig_gyro = 0.08; sig_acc = 0.30;
+R_enc = sig_enc^2; R_gyro = sig_gyro^2; R_acc = sig_acc^2;
+
+% Process noise
+Q = diag([0.0025, 0.01]);
+
+% Initial conditions
+x = [0.8; 0]; xhat = [0; 0]; P = eye(2);
+
+for k = 1:N
+    % --- Measurements ---
+    z_enc  = x(1) + sig_enc*randn;
+    z_gyro = x(2) + sig_gyro*randn;
+    a_true = -(g/L)*sin(x(1)) - d*x(2);
+    z_acc  = a_true + sig_acc*randn;
+
+    % --- Predict ---
+    alpha = -(g/L)*sin(xhat(1)) - d*xhat(2);
+    xhat_m = [xhat(1)+xhat(2)*dt; xhat(2)+alpha*dt];
+    F = [1, dt; -(g/L)*cos(xhat(1))*dt, 1-d*dt];
+    P_m = F*P*F' + Q;
+
+    % --- Information form fusion ---
+    I_prior = inv(P_m);
+    i_prior = I_prior * xhat_m;
+
+    % Encoder: H = [1 0]
+    I_enc = [1/R_enc, 0; 0, 0];
+    i_enc = [z_enc/R_enc; 0];
+
+    % Gyro: H = [0 1]
+    I_gyro = [0, 0; 0, 1/R_gyro];
+    i_gyro = [0; z_gyro/R_gyro];
+
+    % Accelerometer: H_acc = [-(g/L)*cos(th), -d]
+    cth = cos(xhat_m(1));
+    H_acc = [-(g/L)*cth, -d];
+    I_acc = H_acc'/R_acc * H_acc;
+    a_pred = H_acc * xhat_m;
+    a_nl = -(g/L)*sin(xhat_m(1)) - d*xhat_m(2);
+    z_eff = z_acc - a_nl + a_pred;
+    i_acc = H_acc'/R_acc * z_eff;
+
+    % Fuse: sum all information
+    I_fused = I_prior + I_enc + I_gyro + I_acc;
+    i_fused = i_prior + i_enc + i_gyro + i_acc;
+
+    % Recover state and covariance
+    P = inv(I_fused);
+    xhat = P * i_fused;
+
+    % --- True dynamics + noise ---
+    a_x = -(g/L)*sin(x(1)) - d*x(2);
+    x = [x(1)+x(2)*dt; x(2)+a_x*dt] + chol(Q)'*randn(2,1);
+end</code></pre>
+                </div>
+            </div>
+        </div>
+
+        
+        <div class="item-tab-content" id="tab-references">
+            <div class="item-section">
+                <h2>Key References</h2>
+                <ul>
+                    <li>Bar-Shalom, Y. & Li, X.R. (1993). <em>Estimation and Tracking: Principles, Techniques, and Software</em>. Artech House.</li>
+                    <li>Mutambara, A.G.O. (1998). <em>Decentralized Estimation and Control for Multisensor Systems</em>. CRC Press.</li>
+                    <li>Simon, D. (2006). <em>Optimal State Estimation</em>, Ch. 6 (Information Filter). Wiley.</li>
+                </ul>
+                <h3>Related Modules</h3>
+                <div class="item-related">
+                    <a href="https://malphons.github.io/se-zoo-opt-nonlinear-filter/items/ekf/" class="item-related__link">&larr; E05: Extended Kalman Filter</a>
+                    <a href="https://malphons.github.io/se-zoo-adv-force-estimation/items/contact-force/" class="item-related__link">E08: Contact Force Estimation &rarr;</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/data.js"></script>
+    <script src="../../js/shared-diagram.js"></script>
+    <script src="../../js/shared-animation.js"></script>
+    <script src="../../js/shared-tabs.js"></script>
+    <script>
+    (function () {
+        'use strict';
+        var data = SEZoo.itemData;
+        var viewMode = 'position';
+        var sim, anim;
+        SEZoo.tabs.init({ themeKey: 'sezoo_theme' });
+
+        var COLORS = {
+            trueState: '#3fb950', fused: '#58a6ff', encoder: '#3fb950',
+            gyro: '#bc8cff', accel: '#f0c808', error: '#f85149',
+            encCov: '#3fb950', gyroCov: '#bc8cff', fusedCov: '#58a6ff'
+        };
+
+        var robot = SEZoo.anim.createRobotSvg('#robot-container', {
+            viewBox: '-150 -30 300 280'
+        });
+
+        function initDiag(yDom, yLab) {
+            SEZoo.diagram.destroy();
+            SEZoo.diagram.init('#diagram-container', {
+                width: 800, height: 380,
+                xDomain: [0, data.params.duration], yDomain: yDom,
+                xLabel: 'Time (s)', yLabel: yLab
+            });
+        }
+
+        function renderChart() {
+            if (viewMode === 'position') {
+                initDiag([-1.5, 1.5], 'Position (rad)');
+                var encSparse = sim.encPos.filter(function(d,i){ return i%5===0; });
+                SEZoo.diagram.drawScatterPoints(encSparse, {
+                    color: COLORS.encoder, opacity: 0.25, radius: 2,
+                    className: 'se-enc-pts', delayPerPoint: 0
+                });
+                SEZoo.diagram.drawTimeSeries(sim.truePos, {
+                    color: COLORS.trueState, width: 2.5, className: 'se-true'
+                });
+                SEZoo.diagram.drawTimeSeries(sim.encEst, {
+                    color: COLORS.encoder, width: 1.5, opacity: 0.5,
+                    className: 'se-enc-est', animate: false
+                });
+                SEZoo.diagram.drawTimeSeries(sim.fusedPos, {
+                    color: COLORS.fused, width: 2, className: 'se-fused', animate: false
+                });
+                var legendG = SEZoo.diagram.getSvg().append('g')
+                    .attr('class', 'se-legend')
+                    .attr('transform', 'translate(80, 30)');
+                [{label:'True state',color:COLORS.trueState},{label:'Fused estimate',color:COLORS.fused},{label:'Encoder only',color:COLORS.encoder},{label:'Encoder meas.',color:COLORS.encoder,dashed:true}].forEach(function(it,i){
+                    var yy=i*16;
+                    legendG.append('line').attr('x1',0).attr('y1',yy).attr('x2',18).attr('y2',yy).attr('stroke',it.color).attr('stroke-width',it.dashed?1:2).attr('stroke-dasharray',it.dashed?'3,3':'');
+                    legendG.append('text').attr('x',24).attr('y',yy+4).attr('fill','var(--text-muted)').attr('font-size','10px').text(it.label);
+                });
+            } else if (viewMode === 'covariance') {
+                initDiag([0, 2.5], 'tr(P) Covariance Trace');
+                SEZoo.diagram.drawTimeSeries(sim.covTrace_enc, { color: COLORS.encCov, width: 1.5, opacity: 0.6, className: 'se-cov-enc' });
+                SEZoo.diagram.drawTimeSeries(sim.covTrace_gyro, { color: COLORS.gyroCov, width: 1.5, opacity: 0.6, className: 'se-cov-gyro', animate: false });
+                SEZoo.diagram.drawTimeSeries(sim.covTrace_fused, { color: COLORS.fusedCov, width: 2.5, className: 'se-cov-fused', animate: false });
+                var legendG2 = SEZoo.diagram.getSvg().append('g').attr('class','se-legend').attr('transform','translate(80,30)');
+                [{label:'Encoder only',color:COLORS.encCov},{label:'Gyro only',color:COLORS.gyroCov},{label:'Fused (all 3)',color:COLORS.fusedCov}].forEach(function(it,i){
+                    legendG2.append('line').attr('x1',0).attr('y1',i*16).attr('x2',18).attr('y2',i*16).attr('stroke',it.color).attr('stroke-width',2);
+                    legendG2.append('text').attr('x',24).attr('y',i*16+4).attr('fill','var(--text-muted)').attr('font-size','10px').text(it.label);
+                });
+            } else if (viewMode === 'information') {
+                var maxInfo = 0;
+                sim.info_fused.forEach(function(d) { if (d.v > maxInfo) maxInfo = d.v; });
+                maxInfo = Math.max(maxInfo * 1.1, 10);
+                initDiag([0, maxInfo], 'tr(I) Information');
+                SEZoo.diagram.drawTimeSeries(sim.info_enc, { color: COLORS.encoder, width: 1.5, opacity: 0.6, className: 'se-info-enc' });
+                SEZoo.diagram.drawTimeSeries(sim.info_gyro, { color: COLORS.gyro, width: 1.5, opacity: 0.6, className: 'se-info-gyro', animate: false });
+                SEZoo.diagram.drawTimeSeries(sim.info_accel, { color: COLORS.accel, width: 1.5, opacity: 0.6, className: 'se-info-accel', animate: false });
+                SEZoo.diagram.drawTimeSeries(sim.info_fused, { color: COLORS.fused, width: 2.5, className: 'se-info-fused', animate: false });
+                var legendG3 = SEZoo.diagram.getSvg().append('g').attr('class','se-legend').attr('transform','translate(80,30)');
+                [{label:'I_encoder',color:COLORS.encoder},{label:'I_gyro',color:COLORS.gyro},{label:'I_accel',color:COLORS.accel},{label:'I_fused (sum)',color:COLORS.fused}].forEach(function(it,i){
+                    legendG3.append('line').attr('x1',0).attr('y1',i*16).attr('x2',18).attr('y2',i*16).attr('stroke',it.color).attr('stroke-width',2);
+                    legendG3.append('text').attr('x',24).attr('y',i*16+4).attr('fill','var(--text-muted)').attr('font-size','10px').text(it.label);
+                });
+            }
+            document.getElementById('diagram-stats').textContent =
+                'Avg error  Fused: ' + sim.stats.avgErr_fused +
+                '  Encoder: ' + sim.stats.avgErr_enc +
+                '  Gyro: ' + sim.stats.avgErr_gyro +
+                '  |  Enc\u03C3=' + data.params.sigma_encoder.toFixed(3) +
+                '  Gyro\u03C3=' + data.params.sigma_gyro.toFixed(3) +
+                '  Acc\u03C3=' + data.params.sigma_accel.toFixed(2);
+        }
+
+        function renderRobotFrame(frame) {
+            if (!sim || !robot) return;
+            robot.g.selectAll('*').remove();
+
+            var trueAngle = sim.truePos[frame].v;
+            var fusedAngle = sim.fusedPos[frame].v;
+
+            /* True pendulum (green) */
+            var bob = SEZoo.anim.drawPendulum(robot.g, trueAngle, 140, {
+                color: SEZoo.anim.SE_COLORS.true_state
+            });
+
+            /* Fused estimate (blue ghost) */
+            SEZoo.anim.drawPendulum(robot.g, fusedAngle, 140, {
+                color: SEZoo.anim.SE_COLORS.estimate, opacity: 0.4
+            });
+
+            /* Sensor icon badges */
+            var encVal = sim.encPos[frame].v;
+            var gyroVal = sim.gyroVel[frame].v;
+            var accVal = sim.accelAcc[frame].v;
+            SEZoo.anim.drawSensorIcon(robot.g, 'encoder', -100, 220, encVal.toFixed(2));
+            SEZoo.anim.drawSensorIcon(robot.g, 'gyro', 0, 220, gyroVal.toFixed(2));
+            SEZoo.anim.drawSensorIcon(robot.g, 'accel', 100, 220, accVal.toFixed(1));
+
+            /* Angle label */
+            SEZoo.anim.drawAngleLabel(robot.g, 0, 0, trueAngle, {
+                color: SEZoo.anim.SE_COLORS.true_state, radius: 35
+            });
+
+            /* Time cursor */
+            var t = sim.truePos[frame].t;
+            var scales = SEZoo.diagram.getScales();
+            var dims = SEZoo.diagram.getDims();
+            var margin = SEZoo.diagram.getMargin();
+            SEZoo.anim.drawTimeCursor(SEZoo.diagram.getSvg(), scales.x, t, dims.height, margin);
+        }
+
+        function regenerate() {
+            sim = data.generate();
+            renderChart();
+            if (anim) anim.reset(sim.truePos.length);
+        }
+
+        sim = data.generate();
+        renderChart();
+
+        anim = new SEZoo.anim.AnimController({
+            totalFrames: sim.truePos.length,
+            fps: 30,
+            playBtn: document.getElementById('btn-play'),
+            scrubber: document.getElementById('scrubber'),
+            frameDisplay: document.getElementById('frame-display'),
+            speedSelect: document.getElementById('speed-select'),
+            stepBackBtn: document.getElementById('btn-step-back'),
+            stepFwdBtn: document.getElementById('btn-step-fwd'),
+            onFrame: renderRobotFrame
+        });
+
+        ['position', 'covariance', 'information'].forEach(function (m) {
+            var id = 'btn-' + m;
+            document.getElementById(id).addEventListener('click', function () {
+                viewMode = m;
+                document.querySelectorAll('.item-diagram__controls .item-diagram__btn').forEach(function (b) {
+                    if (b.id !== 'btn-regenerate') b.classList.remove('item-diagram__btn--active');
+                });
+                this.classList.add('item-diagram__btn--active');
+                renderChart();
+            });
+        });
+        document.getElementById('btn-regenerate').addEventListener('click', regenerate);
+
+        document.querySelector('#slider-enc .item-slider__input').addEventListener('input', function () {
+            data.params.sigma_encoder = parseFloat(this.value);
+            document.querySelector('#slider-enc .item-slider__value').textContent = data.params.sigma_encoder.toFixed(3);
+            regenerate();
+        });
+        document.querySelector('#slider-gyro .item-slider__input').addEventListener('input', function () {
+            data.params.sigma_gyro = parseFloat(this.value);
+            document.querySelector('#slider-gyro .item-slider__value').textContent = data.params.sigma_gyro.toFixed(3);
+            regenerate();
+        });
+        document.querySelector('#slider-accel .item-slider__input').addEventListener('input', function () {
+            data.params.sigma_accel = parseFloat(this.value);
+            document.querySelector('#slider-accel .item-slider__value').textContent = data.params.sigma_accel.toFixed(2);
+            regenerate();
+        });
+    })();
+    </script>
+</body>
+</html>

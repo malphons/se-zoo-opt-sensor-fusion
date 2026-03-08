@@ -1,0 +1,27 @@
+{
+    "schema_version": "1.0",
+    "repo_id": "se-zoo-opt-sensor-fusion",
+    "group": "optimal-filtering",
+    "category": "sensor-fusion",
+    "label": "Sensor Fusion",
+    "color_accent": "#d29922",
+    "items": [
+        {
+            "id": "sensor-fusion",
+            "module_id": "E06",
+            "name": "Sensor Fusion",
+            "short_description": "Fusing complementary sensors yields better estimates than any sensor alone. Each sensor adds positive-definite information.",
+            "group": "optimal-filtering",
+            "category": "sensor-fusion",
+            "tags": ["fusion", "multi-sensor", "information-form", "complementary", "encoder", "IMU"],
+            "year_introduced": 1970,
+            "key_paper": "Bar-Shalom & Li (1993)",
+            "complexity": "intermediate",
+            "color_accent": "#d29922",
+            "robot": "2-Link Arm",
+            "core_concept": "Multi-sensor information combination",
+            "use_cases": ["Multi-sensor estimation", "Precision-weighted fusion", "Complementary sensor design"],
+            "related_items": ["ekf", "contact-force"]
+        }
+    ]
+}
